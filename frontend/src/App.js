@@ -211,11 +211,11 @@ function App() {
 
                 {currentView === 'dashboard' && (
                   <>
-                    {user.role !== 'viewer' && (
-                        <button className="btn-action btn-add" onClick={() => { setEmployeeToEdit(null); setShowModal(true); }}>
-                            <PlusCircle size={18} /> Novo Func.
-                        </button>
-                    )}
+                    {/* AQUI ESTÁ A MUDANÇA: REMOVI A VERIFICAÇÃO DE ROLE */}
+                    <button className="btn-action btn-add" onClick={() => { setEmployeeToEdit(null); setShowModal(true); }}>
+                        <PlusCircle size={18} /> Novo Func.
+                    </button>
+                    
                     <button className="btn-action btn-excel" onClick={handleExportExcel}>
                         <FileSpreadsheet size={18} /> Excel
                     </button>
