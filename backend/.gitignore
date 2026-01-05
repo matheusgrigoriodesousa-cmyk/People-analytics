@@ -1,0 +1,20 @@
+# --- PYTHON ---
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# --- AMBIENTE VIRTUAL (Vi isso no seu vídeo) ---
+venv/
+env/
+.venv/
+
+# --- SEGURANÇA ---
+.env
+.env.local
+
+# --- ARQUIVOS DE SISTEMA ---
+.DS_Store
+
+# --- EXTRAS (Vi uma pasta node_modules perdida no backend no vídeo) ---
+node_modules/
