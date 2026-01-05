@@ -35,7 +35,6 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
 DATABASE_URL_ENV = os.getenv("DATABASE_URL")
 
 if DATABASE_URL_ENV:
-    # --- AMBIENTE: NUVEM (Render / PostgreSQL) ---
     if DATABASE_URL_ENV.startswith("postgres://"):
         SQLALCHEMY_DATABASE_URL = DATABASE_URL_ENV.replace("postgres://", "postgresql://", 1)
     else:
@@ -43,7 +42,6 @@ if DATABASE_URL_ENV:
     engine = create_engine(SQLALCHEMY_DATABASE_URL)
     print("🚀 Conectado ao PostgreSQL (Ambiente de Nuvem)")
 else:
-    # --- AMBIENTE: LOCAL (SQL Server) ---
     params = urllib.parse.quote_plus(
         "DRIVER={ODBC Driver 17 for SQL Server};"
         "SERVER=localhost;"
@@ -136,11 +134,10 @@ def create_access_token(data: dict):
 
 app = FastAPI(title="People Analytics API")
 
-# --- CONFIGURAÇÃO DE CORS ATUALIZADA ---
 origins = [
-    "https://people-analytics-pi.vercel.app", # Produção
-    "http://localhost:3000",                  # Local React
-    "http://127.0.0.1:3000",                 # Local React Alt
+    "https://people-analytics-pi.vercel.app", 
+    "http://localhost:3000",                  
+    "http://127.0.0.1:3000",                 
 ]
 
 app.add_middleware(
@@ -149,7 +146,6 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
-    # Essencial para navegadores modernos lidarem com Private Network Access
     expose_headers=["*"],
 )
 
@@ -210,19 +206,8 @@ def create_employee(employee: EmployeeCreate, db: Session = Depends(get_db)):
     db.refresh(db_employee)
     return db_employee
 
-@app.delete("/api/employees/{employee_id}", status_code=204)
-def delete_employee(employee_id: int, db: Session = Depends(get_db)):
-    db_employee = db.query(EmployeeDB).filter(EmployeeDB.id == employee_id).first()
-    if not db_employee:
-        raise HTTPException(status_code=404, detail="Não encontrado")
-    db.delete(db_employee)
-    db.commit()
-    return None
-
-if __name__ == "__main__":
-    # Rodar em 0.0.0.0 permite acesso externo na rede local
-    uvicorn.run(app, host="0.0.0.0", port=8000)
-    @app.put("/api/employees/{employee_id}", response_model=Employee)
+# ROTA UPDATE (CORRIGIDA INDENTAÇÃO)
+@app.put("/api/employees/{employee_id}", response_model=Employee)
 def update_employee(employee_id: int, employee: EmployeeCreate, db: Session = Depends(get_db)):
     db_employee = db.query(EmployeeDB).filter(EmployeeDB.id == employee_id).first()
     if not db_employee:
@@ -234,3 +219,16 @@ def update_employee(employee_id: int, employee: EmployeeCreate, db: Session = De
     db.commit()
     db.refresh(db_employee)
     return db_employee
+
+@app.delete("/api/employees/{employee_id}", status_code=204)
+def delete_employee(employee_id: int, db: Session = Depends(get_db)):
+    db_employee = db.query(EmployeeDB).filter(EmployeeDB.id == employee_id).first()
+    if not db_employee:
+        raise HTTPException(status_code=404, detail="Não encontrado")
+    db.delete(db_employee)
+    db.commit()
+    return None
+
+# BLOCO DE EXECUÇÃO (FINAL DO ARQUIVO)
+if __name__ == "__main__":
+    uvicorn.run(app, host="0.0.0.0", port=8000)
