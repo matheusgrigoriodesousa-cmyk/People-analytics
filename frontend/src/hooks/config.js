@@ -1,0 +1,1 @@
+export const API_URL = "https://people-analytics-api-jba6.onrender.com";

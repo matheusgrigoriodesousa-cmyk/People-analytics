@@ -1,8 +1,9 @@
 import { useState, useCallback } from 'react';
 import toast from 'react-hot-toast';
 
-// URL da API: Tenta ler do .env, senão usa o localhost
-const API_URL = process.env.REACT_APP_API_URL || "http://127.0.0.1:8000/api";
+// --- CONFIGURAÇÃO DE URL ATUALIZADA ---
+// Tenta ler do ambiente (Vercel), senão usa a sua URL oficial do Render
+const API_URL = process.env.REACT_APP_API_URL || "https://people-analytics-api-jba6.onrender.com/api";
 
 export function useEmployees() {
     // Estados de Dados
@@ -18,10 +19,12 @@ export function useEmployees() {
     const fetchData = useCallback(async () => {
         setLoading(true);
         try {
+            // Chamada para a lista de funcionários
             const resEmp = await fetch(`${API_URL}/employees`);
             if (!resEmp.ok) throw new Error("Erro ao buscar funcionários");
             const dataEmp = await resEmp.json();
             
+            // Chamada para os dados do dashboard
             const resDash = await fetch(`${API_URL}/dashboard`);
             if (!resDash.ok) throw new Error("Erro ao buscar dashboard");
             const dataDash = await resDash.json();
@@ -39,7 +42,8 @@ export function useEmployees() {
             setError('');
         } catch (err) {
             console.error(err);
-            toast.error("Falha de conexão com o servidor Python.");
+            // Mensagem amigável para o usuário caso o Render esteja "acordando"
+            toast.error("O servidor está iniciando. Aguarde um instante...");
             setError("Sistema Offline - Verifique o servidor.");
         } finally {
             setLoading(false);
@@ -69,16 +73,17 @@ export function useEmployees() {
             });
 
             if (response.ok) {
-                await fetchData(); // Recarrega os dados
+                await fetchData(); // Recarrega os dados após salvar
                 toast.success("Salvo com sucesso!", { id: toastId });
-                if (onSuccess) onSuccess(); // Fecha o modal via callback
+                if (onSuccess) onSuccess(); 
                 return true;
             } else {
-                toast.error("Erro ao salvar.", { id: toastId });
+                const errorData = await response.json();
+                toast.error(errorData.detail || "Erro ao salvar.", { id: toastId });
                 return false;
             }
         } catch (err) {
-            toast.error("Erro de conexão.", { id: toastId });
+            toast.error("Erro de conexão com o servidor.", { id: toastId });
             return false;
         }
     };
@@ -101,7 +106,6 @@ export function useEmployees() {
         }
     };
 
-    // Retorna tudo que o App precisa usar
     return {
         employees,
         dashboardData,

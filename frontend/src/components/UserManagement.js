@@ -2,6 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { Trash2, UserPlus, Shield, Mail, User } from 'lucide-react';
 import toast from 'react-hot-toast';
 
+// --- CONFIGURAÇÃO DE URL ATUALIZADA ---
+const API_URL = process.env.REACT_APP_API_URL || "https://people-analytics-api-jba6.onrender.com";
+
 const UserManagement = () => {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -12,12 +15,16 @@ const UserManagement = () => {
   const [newPass, setNewPass] = useState('');
   const [newRole, setNewRole] = useState('viewer');
 
+  // --- BUSCAR USUÁRIOS ---
   const fetchUsers = async () => {
     try {
-      const response = await fetch('http://127.0.0.1:8000/api/users');
+      // Atualizado para usar a URL do Render
+      const response = await fetch(`${API_URL}/api/users`);
+      if (!response.ok) throw new Error('Erro ao carregar lista');
       const data = await response.json();
       setUsers(data);
     } catch (error) {
+      console.error(error);
       toast.error("Erro ao carregar usuários");
     } finally {
       setLoading(false);
@@ -28,12 +35,15 @@ const UserManagement = () => {
     fetchUsers();
   }, []);
 
+  // --- ADICIONAR USUÁRIO ---
   const handleAddUser = async (e) => {
     e.preventDefault();
     if (!newName || !newEmail || !newPass) return;
 
+    const toastId = toast.loading('Criando usuário...');
     try {
-      const response = await fetch('http://127.0.0.1:8000/auth/register', {
+      // Atualizado para usar a URL do Render
+      const response = await fetch(`${API_URL}/auth/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -44,33 +54,42 @@ const UserManagement = () => {
         })
       });
 
-      if (!response.ok) throw new Error('Erro ao criar');
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Erro ao criar');
+      }
       
-      toast.success("Usuário criado com sucesso!");
+      toast.success("Usuário criado com sucesso!", { id: toastId });
       setNewName(''); setNewEmail(''); setNewPass('');
-      fetchUsers(); // Recarrega a lista
+      fetchUsers(); 
     } catch (err) {
-      toast.error("Erro: Verifique se o email já existe.");
+      toast.error(err.message || "Erro: Verifique se o email já existe.", { id: toastId });
     }
   };
 
+  // --- DELETAR USUÁRIO ---
   const handleDeleteUser = async (id) => {
     if (!window.confirm("Tem certeza que deseja remover este usuário?")) return;
     
+    const toastId = toast.loading('Removendo...');
     try {
-      await fetch(`http://127.0.0.1:8000/api/users/${id}`, { method: 'DELETE' });
-      toast.success("Usuário removido.");
+      // Atualizado para usar a URL do Render
+      const response = await fetch(`${API_URL}/api/users/${id}`, { method: 'DELETE' });
+      
+      if (!response.ok) throw new Error('Erro ao remover');
+
+      toast.success("Usuário removido.", { id: toastId });
       fetchUsers();
     } catch (err) {
-      toast.error("Erro ao remover.");
+      toast.error("Erro ao remover.", { id: toastId });
     }
   };
 
   const getRoleBadge = (role) => {
     const colors = {
-      admin: '#ef4444',   // Vermelho
-      editor: '#f59e0b',  // Laranja
-      viewer: '#10b981'   // Verde
+      admin: '#ef4444',
+      editor: '#f59e0b',
+      viewer: '#10b981'
     };
     return (
       <span style={{ 
@@ -78,7 +97,7 @@ const UserManagement = () => {
         fontSize: '0.75rem', fontWeight: 'bold', 
         backgroundColor: colors[role] || '#ccc' 
       }}>
-        {role.toUpperCase()}
+        {role ? role.toUpperCase() : 'N/A'}
       </span>
     );
   };
@@ -126,30 +145,41 @@ const UserManagement = () => {
 
       {/* --- LISTA DE USUÁRIOS --- */}
       <div className="table-container">
-        <table className="custom-table">
-          <thead>
-            <tr>
-              <th>Nome</th>
-              <th>E-mail</th>
-              <th>Permissão</th>
-              <th>Ações</th>
-            </tr>
-          </thead>
-          <tbody>
-            {users.map(u => (
-              <tr key={u.id}>
-                <td><div style={{display:'flex', gap:'8px', alignItems:'center'}}><User size={16}/> {u.nome}</div></td>
-                <td><div style={{display:'flex', gap:'8px', alignItems:'center'}}><Mail size={16}/> {u.email}</div></td>
-                <td>{getRoleBadge(u.role)}</td>
-                <td>
-                  <button className="btn-icon delete" onClick={() => handleDeleteUser(u.id)} title="Remover acesso">
-                    <Trash2 size={18} />
-                  </button>
-                </td>
+        {loading ? (
+          <p style={{ textAlign: 'center', padding: '20px' }}>Carregando usuários...</p>
+        ) : (
+          <table className="custom-table">
+            <thead>
+              <tr>
+                <th>Nome</th>
+                <th>E-mail</th>
+                <th>Permissão</th>
+                <th>Ações</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {users.map(u => (
+                <tr key={u.id}>
+                  <td><div style={{display:'flex', gap:'8px', alignItems:'center'}}><User size={16}/> {u.nome}</div></td>
+                  <td><div style={{display:'flex', gap:'8px', alignItems:'center'}}><Mail size={16}/> {u.email}</div></td>
+                  <td>{getRoleBadge(u.role)}</td>
+                  <td>
+                    <button className="btn-icon delete" onClick={() => handleDeleteUser(u.id)} title="Remover acesso">
+                      <Trash2 size={18} />
+                    </button>
+                  </td>
+                </tr>
+              ))}
+              {users.length === 0 && !loading && (
+                <tr>
+                  <td colSpan="4" style={{ textAlign: 'center', padding: '20px', color: '#888' }}>
+                    Nenhum usuário cadastrado.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        )}
       </div>
     </div>
   );
