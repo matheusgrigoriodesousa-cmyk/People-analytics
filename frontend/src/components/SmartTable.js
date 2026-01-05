@@ -11,31 +11,48 @@ import {
   ArrowDown 
 } from 'lucide-react';
 
-// 1. Recebemos 'currentUserRole' nas props
+// ============================================================================
+// BLOCO 1: DEFINIÇÃO DO COMPONENTE COM 'forwardRef'
+// ============================================================================
+// Usamos 'forwardRef' para permitir que o componente PAI (Dashboard.js) acesse
+// funções internas deste componente (como pegar os dados filtrados para exportar Excel).
 const SmartTable = forwardRef(({ data, onEdit, onDelete, searchState, currentUserRole }, ref) => {
   
-  const [internalSearchTerm, setInternalSearchTerm] = useState('');
-  const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(5);
+  // ============================================================================
+  // BLOCO 2: ESTADOS LOCAIS (A "Memória" da Tabela)
+  // ============================================================================
+  const [internalSearchTerm, setInternalSearchTerm] = useState(''); // Busca local (caso não venha do pai)
+  const [currentPage, setCurrentPage] = useState(1);   // Página atual
+  const [itemsPerPage, setItemsPerPage] = useState(5); // Quantos itens mostrar por vez
+  
+  // Configuração de Ordenação: qual coluna (key) e qual direção ('asc' ou 'desc')
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
 
-  // Lógica de Ordenação
+  // ============================================================================
+  // BLOCO 3: LÓGICA DE ORDENAÇÃO (Click no Cabeçalho)
+  // ============================================================================
   const requestSort = (key) => {
     let direction = 'asc';
+    // Se clicar na mesma coluna que já está ordenada, inverte a direção
     if (sortConfig.key === key && sortConfig.direction === 'asc') {
       direction = 'desc';
     }
     setSortConfig({ key, direction });
   };
 
+  // Decide qual termo de busca usar: o que veio do Pai (searchState) ou o Local
   const searchTerm = searchState ? searchState.value : internalSearchTerm;
 
-  // Lógica de Processamento (Filtro + Busca + Sort)
+  // ============================================================================
+  // BLOCO 4: O "MOTOR" DE PROCESSAMENTO (useMemo)
+  // ============================================================================
+  // Esta é a parte mais importante. O useMemo garante que essa lógica pesada
+  // só rode quando os dados, a busca ou a ordenação mudarem.
   const processedData = useMemo(() => {
     const safeData = Array.isArray(data) ? data : [];
-    let filtered = [...safeData];
+    let filtered = [...safeData]; // Cria uma cópia para não mexer no original
 
-    // Filtra pela busca (se não for busca externa)
+    // 1. FILTRAGEM: Verifica se o texto da busca existe em ALGUM valor da linha
     if (!searchState && searchTerm) {
       filtered = filtered.filter(item => 
         Object.values(item).some(val => 
@@ -44,7 +61,7 @@ const SmartTable = forwardRef(({ data, onEdit, onDelete, searchState, currentUse
       );
     }
 
-    // Ordena
+    // 2. ORDENAÇÃO: Se houver uma coluna selecionada, reordena o array
     if (sortConfig.key) {
       filtered.sort((a, b) => {
         if (a[sortConfig.key] < b[sortConfig.key]) {
@@ -57,28 +74,39 @@ const SmartTable = forwardRef(({ data, onEdit, onDelete, searchState, currentUse
       });
     } 
 
-    return filtered;
+    return filtered; // Retorna a lista pronta (Filtrada e Ordenada)
   }, [data, searchTerm, sortConfig, searchState]);
 
-  // Expomos os dados filtrados para quem usar a ref (App.js)
+  // ============================================================================
+  // BLOCO 5: EXPONDO DADOS PARA O PAI (Excel)
+  // ============================================================================
+  // Aqui dizemos: "Pai, se você chamar tableRef.current.getFilteredData(), 
+  // eu te devolvo os dados já processados (filtrados)". Isso é usado para gerar o Excel.
   useImperativeHandle(ref, () => ({
     getFilteredData: () => processedData
   }));
 
-  // Paginação
+  // ============================================================================
+  // BLOCO 6: CÁLCULO DE PAGINAÇÃO
+  // ============================================================================
+  // Divide a lista processada em "fatias" para exibir apenas a página atual.
   const totalPages = Math.ceil(processedData.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
   const currentData = processedData.slice(startIndex, startIndex + itemsPerPage);
 
+  // Helper para desenhar a setinha ao lado do título da coluna
   const getSortIcon = (name) => {
     if (sortConfig.key !== name) return <ArrowUpDown size={14} style={{ opacity: 0.3 }} />;
     return sortConfig.direction === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />;
   };
 
+  // ============================================================================
+  // BLOCO 7: RENDERIZAÇÃO - CONTROLES SUPERIORES
+  // ============================================================================
   return (
     <div className="smart-table-wrapper">
-      {/* Controles da Tabela */}
       <div className="table-controls">
+        {/* Campo de Busca */}
         <div style={{ position: 'relative' }}>
             <Search size={18} style={{ position: 'absolute', left: '10px', top: '10px', color: '#888' }} />
             <input 
@@ -88,15 +116,18 @@ const SmartTable = forwardRef(({ data, onEdit, onDelete, searchState, currentUse
               style={{ paddingLeft: '35px' }}
               value={searchTerm}
               onChange={(e) => { 
+                // Atualiza o estado do Pai ou o Local, dependendo de quem controla
                 if (searchState) {
                   searchState.setValue(e.target.value);
                 } else {
                   setInternalSearchTerm(e.target.value);
                 }
-                setCurrentPage(1); 
+                setCurrentPage(1); // Volta pra página 1 ao pesquisar
               }}
             />
         </div>
+        
+        {/* Seletor de Itens por Página */}
         <div className="result-count">
             <span style={{ marginRight: '10px', color: '#666' }}>Itens por pág:</span>
             <select 
@@ -111,10 +142,13 @@ const SmartTable = forwardRef(({ data, onEdit, onDelete, searchState, currentUse
         </div>
       </div>
 
-      {/* Tabela */}
+      {/* ============================================================================
+          BLOCO 8: CABEÇALHO DA TABELA (CLICÁVEL)
+      ============================================================================ */}
       <table className="custom-table">
         <thead>
           <tr>
+            {/* Cada TH tem um onClick para ordenar por aquela coluna */}
             <th onClick={() => requestSort('nome')} style={{ cursor: 'pointer' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
                     NOME {getSortIcon('nome')}
@@ -136,10 +170,14 @@ const SmartTable = forwardRef(({ data, onEdit, onDelete, searchState, currentUse
                 </div>
             </th>
             
-            {/* 2. SÓ MOSTRA O TÍTULO 'AÇÕES' SE NÃO FOR VIEWER */}
+            {/* SEGURANÇA: Coluna Ações só aparece se NÃO for 'viewer' */}
             {currentUserRole !== 'viewer' && <th>AÇÕES</th>}
           </tr>
         </thead>
+        
+        {/* ============================================================================
+            BLOCO 9: CORPO DA TABELA (DADOS)
+        ============================================================================ */}
         <tbody>
           {currentData.length > 0 ? (
             currentData.map((emp) => (
@@ -152,10 +190,11 @@ const SmartTable = forwardRef(({ data, onEdit, onDelete, searchState, currentUse
                 </td>
                 <td>{emp.cargo}</td>
                 <td style={{ fontFamily: 'monospace', fontWeight: 700 }}>
+                    {/* Formatação bonita de moeda R$ */}
                     R$ {Number(emp.salario).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                 </td>
                 
-                {/* 3. SÓ MOSTRA OS BOTÕES SE NÃO FOR VIEWER */}
+                {/* SEGURANÇA: Botões Editar/Excluir só aparecem se NÃO for 'viewer' */}
                 {currentUserRole !== 'viewer' && (
                   <td>
                     <button className="btn-icon edit" onClick={() => onEdit(emp)} title="Editar">
@@ -169,8 +208,8 @@ const SmartTable = forwardRef(({ data, onEdit, onDelete, searchState, currentUse
               </tr>
             ))
           ) : (
+            // Caso a busca não encontre nada
             <tr>
-              {/* Ajustamos o colspan para cobrir a coluna de ações se ela não existir */}
               <td colSpan={currentUserRole !== 'viewer' ? "5" : "4"} style={{ textAlign: 'center', padding: '30px', color: '#888' }}>
                 Nenhum resultado encontrado para "{searchTerm}".
               </td>
@@ -179,13 +218,16 @@ const SmartTable = forwardRef(({ data, onEdit, onDelete, searchState, currentUse
         </tbody>
       </table>
 
-      {/* Paginação */}
+      {/* ============================================================================
+          BLOCO 10: RODAPÉ (PAGINAÇÃO)
+      ============================================================================ */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '20px', padding: '0 10px' }}>
           <span style={{ fontSize: '0.85rem', color: '#666' }}>
               Mostrando <strong>{currentData.length}</strong> de <strong>{processedData.length}</strong> resultados
           </span>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+              {/* Botão Página Anterior */}
               <button 
                 className="btn-icon"
                 onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
@@ -199,6 +241,7 @@ const SmartTable = forwardRef(({ data, onEdit, onDelete, searchState, currentUse
                   Página {currentPage} de {totalPages || 1}
               </span>
 
+              {/* Botão Próxima Página */}
               <button 
                 className="btn-icon"
                 onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}

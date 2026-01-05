@@ -1,77 +1,119 @@
 import React, { useEffect } from 'react';
-import { useForm } from 'react-hook-form';
-import { z } from 'zod'; // O validador
-import { zodResolver } from '@hookform/resolvers/zod'; // A ponte entre Zod e React Hook Form
+import { useForm } from 'react-hook-form'; // Gerencia o estado do formulário (valores, erros, envio)
+import { z } from 'zod'; // Biblioteca de validação (cria as regras)
+import { zodResolver } from '@hookform/resolvers/zod'; // Conecta o Zod ao React Hook Form
 import '../App.css'; 
 
-// 1. DEFINIÇÃO DAS REGRAS (SCHEMA)
-// Aqui é onde a mágica acontece. O Zod garante que os dados sigam esse padrão.
+// ============================================================================
+// BLOCO 1: DEFINIÇÃO DO SCHEMA DE VALIDAÇÃO (ZOD)
+// ============================================================================
+// Aqui definimos as "regras do jogo". O formulário só será enviado se
+// os dados passarem por todas essas verificações.
 const employeeSchema = z.object({
-  nome: z.string().min(3, "O nome deve ter pelo menos 3 letras").nonempty("Nome é obrigatório"),
-  email: z.string().email("Digite um e-mail válido").nonempty("E-mail é obrigatório"),
-  dept: z.string().nonempty("Selecione um departamento"),
-  cargo: z.string().min(2, "Cargo inválido").nonempty("Cargo é obrigatório"),
+  // Validação de Texto (String)
+  nome: z.string()
+         .min(3, "O nome deve ter pelo menos 3 letras") // Erro se for muito curto
+         .nonempty("Nome é obrigatório"),               // Erro se estiver vazio
+
+  // Validação de E-mail (formato automático)
+  email: z.string()
+          .email("Digite um e-mail válido") // Verifica @ e domínio
+          .nonempty("E-mail é obrigatório"),
+
+  dept: z.string().nonempty("Selecione um departamento"), // Obrigatório selecionar no <select>
+
+  cargo: z.string()
+          .min(2, "Cargo inválido")
+          .nonempty("Cargo é obrigatório"),
+
+  // Validação de Números
+  // 'invalid_type_error' aparece se o usuário tentar digitar letras num campo numérico (ou o HTML não converter)
   salario: z.number({ invalid_type_error: "Salário deve ser número" })
-            .min(1320, "O salário não pode ser menor que o mínimo (R$ 1320)")
+            .min(1320, "O salário não pode ser menor que o mínimo (R$ 1320)") // Regra de negócio
             .positive("Salário deve ser positivo"),
+
   idade: z.number({ invalid_type_error: "Idade inválida" })
-          .min(18, "Proibido trabalho infantil (mín 18 anos)")
+          .min(18, "Proibido trabalho infantil (mín 18 anos)") // Regra legal
           .max(100, "Idade inválida"),
-  // id é opcional pois só existe na edição
+
+  // Campo Opcional: ID só existe na Edição, na Criação ele não vem.
   id: z.number().optional()
 });
 
+// ============================================================================
+// BLOCO 2: COMPONENTE E CONFIGURAÇÃO DO HOOK
+// ============================================================================
 const ModalCadastro = ({ onClose, onSave, departments, employeeToEdit }) => {
   
-  // 2. CONFIGURAÇÃO DO FORMULÁRIO
+  // Inicializa o useForm. É aqui que conectamos o validador Zod.
   const { 
-    register, 
-    handleSubmit, 
-    formState: { errors }, 
-    setValue,
-    reset 
+    register,     // Função para "registrar" os inputs (conectar input -> hook)
+    handleSubmit, // Função que gerencia o submit (valida antes de enviar)
+    formState: { errors }, // Objeto que guarda os erros de validação atuais
+    setValue,     // Função para preencher campos manualmente (usado na edição)
+    reset         // Função para limpar o formulário
   } = useForm({
-    resolver: zodResolver(employeeSchema), // Conecta o Zod
+    resolver: zodResolver(employeeSchema), // <--- A MÁGICA: Conecta o Zod aqui
     defaultValues: {
       nome: '', email: '', dept: '', cargo: '', salario: 0, idade: 0
     }
   });
 
-  // 3. PREENCHER DADOS NA EDIÇÃO
+  // ============================================================================
+  // BLOCO 3: PREENCHIMENTO AUTOMÁTICO (EFEITO DE EDIÇÃO)
+  // ============================================================================
+  // Este useEffect roda sempre que o modal abre ou 'employeeToEdit' muda.
   useEffect(() => {
     if (employeeToEdit) {
-      // Preenche os campos automaticamente
+      // MODO EDIÇÃO: Temos um funcionário para editar.
+      // O loop percorre cada campo do funcionário (nome, email, etc) e
+      // usa o setValue para jogar esse dado dentro do input correspondente.
       Object.keys(employeeToEdit).forEach(key => {
         setValue(key, employeeToEdit[key]);
       });
     } else {
-      reset(); // Limpa se for novo cadastro
+      // MODO CRIAÇÃO: Não tem funcionário (é null).
+      // Limpa todos os campos para garantir que não sobrou lixo de uma edição anterior.
+      reset(); 
     }
   }, [employeeToEdit, setValue, reset]);
 
-  // 4. FUNÇÃO DE ENVIO (Só é chamada se o Zod aprovar)
+  // ============================================================================
+  // BLOCO 4: FUNÇÃO DE SUBMISSÃO
+  // ============================================================================
+  // Esta função SÓ é chamada pelo handleSubmit se não houver NENHUM erro de validação.
   const onSubmit = (data) => {
-    onSave(data);
+    // 'data' já é o objeto limpo e validado (ex: salários já são números, strings sem espaços extras, etc)
+    onSave(data); 
   };
 
+  // ============================================================================
+  // BLOCO 5: RENDERIZAÇÃO (JSX - O VISUAL)
+  // ============================================================================
   return (
     <div className="modal-overlay">
       <div className="modal-content animate-fade-in">
+        
+        {/* CABEÇALHO DO MODAL */}
         <div className="modal-header">
+          {/* Título muda dinamicamente dependendo se é Edição ou Novo */}
           <h3>{employeeToEdit ? '✏️ Editar Funcionário' : '✨ Novo Funcionário'}</h3>
           <button className="btn-close" onClick={onClose}>&times;</button>
         </div>
 
+        {/* FORMULÁRIO */}
+        {/* O handleSubmit envolve nossa função onSubmit para garantir a validação antes */}
         <form onSubmit={handleSubmit(onSubmit)}>
           
-          {/* NOME & EMAIL */}
+          {/* --- GRUPO 1: DADOS PESSOAIS --- */}
           <div className="form-row">
             <div className="form-group">
               <label>Nome Completo</label>
               <input 
-                {...register("nome")} // Conecta o input ao hook
+                {...register("nome")} // O 'register' injeta onChange, onBlur, name e ref aqui
                 placeholder="Ex: João Silva" 
               />
+              {/* Exibição condicional de erro: Só mostra o span se errors.nome existir */}
               {errors.nome && <span className="error-text">{errors.nome.message}</span>}
             </div>
 
@@ -85,12 +127,13 @@ const ModalCadastro = ({ onClose, onSave, departments, employeeToEdit }) => {
             </div>
           </div>
 
-          {/* DEPARTAMENTO & CARGO */}
+          {/* --- GRUPO 2: DADOS CORPORATIVOS --- */}
           <div className="form-row">
             <div className="form-group">
               <label>Departamento</label>
               <select {...register("dept")}>
                 <option value="">Selecione...</option>
+                {/* Mapeia a lista de departamentos recebida via props */}
                 {departments.map(d => <option key={d} value={d}>{d}</option>)}
               </select>
               {errors.dept && <span className="error-text">{errors.dept.message}</span>}
@@ -103,14 +146,15 @@ const ModalCadastro = ({ onClose, onSave, departments, employeeToEdit }) => {
             </div>
           </div>
 
-          {/* SALÁRIO & IDADE */}
+          {/* --- GRUPO 3: NÚMEROS (SALÁRIO E IDADE) --- */}
           <div className="form-row">
             <div className="form-group">
               <label>Salário (R$)</label>
               <input 
                 type="number" 
-                step="0.01"
-                {...register("salario", { valueAsNumber: true })} // Converte string pra number auto
+                step="0.01" // Permite centavos
+                // valueAsNumber: true força o React Hook Form a tratar isso como número, não string
+                {...register("salario", { valueAsNumber: true })} 
               />
               {errors.salario && <span className="error-text">{errors.salario.message}</span>}
             </div>
@@ -125,6 +169,7 @@ const ModalCadastro = ({ onClose, onSave, departments, employeeToEdit }) => {
             </div>
           </div>
 
+          {/* RODAPÉ COM BOTÕES */}
           <div className="modal-footer">
             <button type="button" className="btn-secondary" onClick={onClose}>Cancelar</button>
             <button type="submit" className="btn-primary">

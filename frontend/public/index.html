@@ -1,23 +1,71 @@
+<!-- Define que este documento usa HTML5 -->
 <!DOCTYPE html>
+
+<!-- Início do documento HTML -->
+<!-- lang="en" define o idioma da página (pode trocar para pt-BR) -->
 <html lang="en">
+
+  <!-- Cabeçalho do documento (não aparece visualmente na página) -->
   <head>
+
+    <!-- Define o conjunto de caracteres como UTF-8 -->
+    <!-- Permite acentos, emojis e caracteres especiais -->
     <meta charset="utf-8" />
+
+    <!-- Ícone da aba do navegador (favicon) -->
+    <!-- %PUBLIC_URL% é uma variável do Create React App -->
     <link rel="icon" href="%PUBLIC_URL%/favicon.ico" />
+
+    <!-- Configuração essencial para responsividade -->
+    <!-- width=device-width ajusta ao tamanho da tela -->
+    <!-- initial-scale=1 define o zoom inicial -->
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <!-- Define a cor da barra do navegador em dispositivos móveis -->
     <meta name="theme-color" content="#000000" />
+
+    <!-- Descrição do site -->
+    <!-- Importante para SEO (Google) e compartilhamento -->
     <meta
       name="description"
       content="Web site created using create-react-app"
     />
+
+    <!-- Ícone usado quando o site é salvo na tela inicial do iOS -->
     <link rel="apple-touch-icon" href="%PUBLIC_URL%/logo192.png" />
-    
+
+    <!-- Título da página -->
+    <!-- Aparece na aba do navegador e nos resultados de busca -->
     <title>Portal Corporativo RH</title>
 
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
-    </head>
+    <!-- Importação da fonte Inter do Google Fonts -->
+    <!-- Pesos disponíveis: 300, 400, 600 e 700 -->
+    <link 
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" 
+      rel="stylesheet"
+    >
+
+  </head>
+  <!-- Fim do cabeçalho -->
+
+  <!-- Corpo da página -->
   <body>
-    <noscript>You need to enable JavaScript to run this app.</noscript>
-    
+
+    <!-- Mensagem exibida apenas se o JavaScript estiver desativado -->
+    <!-- Apps React dependem de JavaScript para funcionar -->
+    <noscript>
+      You need to enable JavaScript to run this app.
+    </noscript>
+
+    <!-- Elemento raiz da aplicação React -->
+    <!-- Todo o React será renderizado dentro desta div -->
     <div id="root"></div>
-    </body>
+
+    <!-- Nenhum HTML visual é escrito aqui -->
+    <!-- O React injeta tudo via JavaScript -->
+
+  </body>
+  <!-- Fim do corpo -->
+
 </html>
+<!-- Fim do documento HTML -->
