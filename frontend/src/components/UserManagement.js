@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Trash2, UserPlus, Shield, User, AlertCircle, Edit, X, Save } from 'lucide-react';
+import { useNavigate } from 'react-router-dom'; // <--- IMPORTANTE PARA NAVEGAÇÃO
+import { Trash2, UserPlus, Shield, User, AlertCircle, Edit, X, Save, ArrowLeft } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const RAW_URL = process.env.REACT_APP_API_URL || "https://people-analytics-api-jba6.onrender.com/api";
@@ -7,11 +8,12 @@ const BASE_URL = RAW_URL.replace(/\/api$/, '');
 const API_URL = `${BASE_URL}/api`;
 
 const UserManagement = () => {
+    const navigate = useNavigate(); // Hook para navegar entre páginas
     const [users, setUsers] = useState([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     
-    // Estados para controlar a Edição
+    // Estados para Edição
     const [editingUser, setEditingUser] = useState(null); 
     const [formData, setFormData] = useState({ nome: '', email: '', role: 'viewer', password: '' });
 
@@ -23,7 +25,17 @@ const UserManagement = () => {
         try {
             const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
             const response = await fetch(`${API_URL}/users`, { headers });
-            if (!response.ok) throw new Error('Erro ao carregar lista');
+            
+            if (!response.ok) {
+                // Se der erro 401 (token expirado), manda pro login
+                if (response.status === 401) {
+                    toast.error("Sessão expirada");
+                    navigate('/');
+                    return;
+                }
+                throw new Error('Erro ao carregar lista');
+            }
+            
             const data = await response.json();
             setUsers(data);
             setError('');
@@ -33,32 +45,36 @@ const UserManagement = () => {
         } finally {
             setLoading(false);
         }
-    }, [token]);
+    }, [token, navigate]);
 
     useEffect(() => {
         fetchUsers();
     }, [fetchUsers]);
 
-    // --- CLICOU NO LÁPIS (Abrir Edição) ---
+    // --- PREPARAR EDIÇÃO ---
     const handleEditClick = (user) => {
         setEditingUser(user);
         setFormData({ 
             nome: user.nome, 
             email: user.email, 
             role: user.role,
-            password: '' // Senha começa vazia
+            password: '' 
         });
     };
 
-    // --- SALVAR EDIÇÃO (Backend) ---
+    // --- SALVAR EDIÇÃO ---
     const handleUpdate = async (e) => {
         e.preventDefault();
         const toastId = toast.loading("Atualizando...");
 
         try {
-            // Remove senha se estiver vazia (para não sobrescrever com vazio)
+            // Limpa a senha se estiver vazia para não enviar string vazia pro banco
             const payload = { ...formData };
-            if (!payload.password) delete payload.password;
+            if (!payload.password || payload.password.trim() === '') {
+                delete payload.password;
+            }
+
+            console.log("Enviando atualização:", payload); // Para depuração
 
             const response = await fetch(`${API_URL}/users/${editingUser.id}`, {
                 method: 'PUT',
@@ -71,17 +87,20 @@ const UserManagement = () => {
 
             if (response.ok) {
                 toast.success("Usuário atualizado!", { id: toastId });
-                setEditingUser(null); // Fecha modal
-                fetchUsers(); // Recarrega lista
+                setEditingUser(null);
+                fetchUsers();
             } else {
-                throw new Error();
+                const errorData = await response.json();
+                console.error("Erro backend:", errorData);
+                throw new Error(errorData.detail || "Falha ao atualizar");
             }
         } catch (err) {
-            toast.error("Erro ao atualizar.", { id: toastId });
+            console.error(err);
+            toast.error("Erro ao atualizar. Verifique se o backend subiu.", { id: toastId });
         }
     };
 
-    // --- CLICOU NA LIXEIRA (Excluir) ---
+    // --- DELETAR ---
     const handleDelete = async (id, email) => {
         if (!window.confirm(`Tem certeza que deseja excluir ${email}?`)) return;
         
@@ -91,10 +110,13 @@ const UserManagement = () => {
                 method: 'DELETE',
                 headers: { 'Authorization': `Bearer ${token}` }
             });
+
             if (response.ok) {
                 toast.success("Usuário removido!", { id: toastId });
                 fetchUsers();
-            } else throw new Error();
+            } else {
+                throw new Error();
+            }
         } catch (err) {
             toast.error("Erro ao remover.", { id: toastId });
         }
@@ -102,17 +124,44 @@ const UserManagement = () => {
 
     return (
         <div className="card animate-fade-in" style={{position: 'relative'}}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                <h2 style={{ fontSize: '1.5rem', color: '#333', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <Shield size={28} color="#0078d4" /> Gerenciar Usuários
-                </h2>
+            
+            {/* --- CABEÇALHO COM BOTÃO VOLTAR --- */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', borderBottom: '1px solid #eee', paddingBottom: '10px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                    {/* BOTÃO VOLTAR AQUI */}
+                    <button 
+                        onClick={() => navigate('/dashboard')} 
+                        style={{
+                            background: '#f3f2f1', 
+                            border: 'none', 
+                            borderRadius: '50%', 
+                            width: '40px', 
+                            height: '40px', 
+                            display: 'flex', 
+                            alignItems: 'center', 
+                            justifyContent: 'center',
+                            cursor: 'pointer',
+                            color: '#333'
+                        }}
+                        title="Voltar para o Dashboard"
+                    >
+                        <ArrowLeft size={20} />
+                    </button>
+                    
+                    <h2 style={{ fontSize: '1.5rem', color: '#333', display: 'flex', alignItems: 'center', gap: '10px', margin: 0 }}>
+                        <Shield size={28} color="#0078d4" /> Gerenciar Usuários
+                    </h2>
+                </div>
+
                 <button className="btn-primary" onClick={() => toast('Use a tela de Registro para novos')} style={{display: 'flex', gap: '5px'}}>
                     <UserPlus size={18} /> Novo Usuário
                 </button>
             </div>
 
+            {/* --- LISTA DE ERROS --- */}
             {error && <div style={{ padding: '15px', background: '#ffebee', color: '#c62828', borderRadius: '8px', marginBottom: '15px' }}><AlertCircle size={16}/> {error}</div>}
 
+            {/* --- TABELA --- */}
             {loading ? <p>Carregando...</p> : (
                 <div className="table-container">
                     <table>
@@ -128,7 +177,10 @@ const UserManagement = () => {
                         <tbody>
                             {users.map(user => (
                                 <tr key={user.id}>
-                                    <td style={{display: 'flex', alignItems: 'center', gap: '10px'}}><div style={{background: '#e0e0e0', padding: '5px', borderRadius: '50%'}}><User size={16}/></div>{user.nome}</td>
+                                    <td style={{display: 'flex', alignItems: 'center', gap: '10px'}}>
+                                        <div style={{background: '#e0e0e0', padding: '5px', borderRadius: '50%'}}><User size={16}/></div>
+                                        {user.nome}
+                                    </td>
                                     <td>{user.email}</td>
                                     <td>
                                         <span style={{ padding: '4px 8px', borderRadius: '12px', fontSize: '0.8rem', background: user.role === 'admin' ? '#e3f2fd' : '#f5f5f5', color: user.role === 'admin' ? '#1565c0' : '#616161', fontWeight: 'bold' }}>
@@ -137,11 +189,9 @@ const UserManagement = () => {
                                     </td>
                                     <td><span style={{color: user.is_active ? 'green' : 'red', fontWeight: 'bold'}}>{user.is_active ? 'Ativo' : 'Inativo'}</span></td>
                                     <td style={{textAlign: 'center'}}>
-                                        {/* BOTÃO EDITAR */}
                                         <button onClick={() => handleEditClick(user)} style={{background: 'none', border: 'none', cursor: 'pointer', color: '#0078d4', padding: '5px', marginRight: '10px'}} title="Editar">
                                             <Edit size={18} />
                                         </button>
-                                        {/* BOTÃO EXCLUIR */}
                                         <button onClick={() => handleDelete(user.id, user.email)} style={{background: 'none', border: 'none', cursor: 'pointer', color: '#d32f2f', padding: '5px'}} title="Excluir">
                                             <Trash2 size={18} />
                                         </button>
@@ -153,7 +203,7 @@ const UserManagement = () => {
                 </div>
             )}
 
-            {/* --- MODAL (JANELA) DE EDIÇÃO --- */}
+            {/* --- MODAL DE EDIÇÃO --- */}
             {editingUser && (
                 <div style={{
                     position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
