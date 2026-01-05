@@ -1,9 +1,14 @@
 import { useState, useCallback } from 'react';
 import toast from 'react-hot-toast';
 
-// --- CONFIGURAÇÃO DE URL ATUALIZADA ---
-// Tenta ler do ambiente (Vercel), senão usa a sua URL oficial do Render
-const API_URL = process.env.REACT_APP_API_URL || "https://people-analytics-api-jba6.onrender.com/api";
+// --- CONFIGURAÇÃO DE URL BLINDADA (PARA O HOOK) ---
+// 1. Pega a URL do .env ou do Render
+const RAW_URL = process.env.REACT_APP_API_URL || "https://people-analytics-api-jba6.onrender.com/api";
+
+// 2. SEGURANÇA: Remove "/api" do fim se tiver e adiciona de novo
+// Garante que sempre termine em ".../api"
+const BASE_URL = RAW_URL.replace(/\/api$/, ''); 
+const API_URL = `${BASE_URL}/api`;
 
 export function useEmployees() {
     // Estados de Dados
@@ -15,40 +20,53 @@ export function useEmployees() {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
 
+    // Função auxiliar para pegar o token
+    const getAuthHeaders = () => {
+        const token = localStorage.getItem('token');
+        return token ? { 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}` 
+        } : { 
+            'Content-Type': 'application/json' 
+        };
+    };
+
     // --- AÇÃO 1: BUSCAR DADOS (Fetch) ---
     const fetchData = useCallback(async () => {
         setLoading(true);
         try {
-            // Chamada para a lista de funcionários
-            const resEmp = await fetch(`${API_URL}/employees`);
+            const headers = getAuthHeaders();
+            
+            // Log para debug (Aperte F12 para ver se a URL está certa)
+            console.log(`Hook buscando em: ${API_URL}/employees`);
+
+            const resEmp = await fetch(`${API_URL}/employees`, { headers });
             if (!resEmp.ok) throw new Error("Erro ao buscar funcionários");
             const dataEmp = await resEmp.json();
             
-            // Chamada para os dados do dashboard
-            const resDash = await fetch(`${API_URL}/dashboard`);
+            const resDash = await fetch(`${API_URL}/dashboard`, { headers });
             if (!resDash.ok) throw new Error("Erro ao buscar dashboard");
             const dataDash = await resDash.json();
 
-            // Atualiza estados
             setEmployees(dataEmp);
             setDashboardData(dataDash);
 
             if (dataDash.lista_departamentos?.length > 0) {
                 setDepartments(dataDash.lista_departamentos);
             } else {
-                setDepartments(['TI', 'RH', 'Financeiro', 'Comercial']);
+                setDepartments(['TI', 'RH', 'Financeiro', 'Comercial', 'Operações', 'Marketing']);
             }
             
             setError('');
         } catch (err) {
             console.error(err);
-            // Mensagem amigável para o usuário caso o Render esteja "acordando"
-            toast.error("O servidor está iniciando. Aguarde um instante...");
-            setError("Sistema Offline - Verifique o servidor.");
+            // Evita toast repetitivo se já tiver erro na tela
+            if (!error) toast.error("Falha na conexão com o servidor.");
+            setError("Sistema Offline.");
         } finally {
             setLoading(false);
         }
-    }, []);
+    }, [error]); // Adicionado error na dependência para evitar loop de toasts
 
     // --- AÇÃO 2: SALVAR (Create/Update) ---
     const saveEmployee = async (employeeData, onSuccess) => {
@@ -68,12 +86,12 @@ export function useEmployees() {
 
             const response = await fetch(url, {
                 method: method,
-                headers: { 'Content-Type': 'application/json' },
+                headers: getAuthHeaders(),
                 body: JSON.stringify(payload)
             });
 
             if (response.ok) {
-                await fetchData(); // Recarrega os dados após salvar
+                await fetchData();
                 toast.success("Salvo com sucesso!", { id: toastId });
                 if (onSuccess) onSuccess(); 
                 return true;
@@ -83,7 +101,8 @@ export function useEmployees() {
                 return false;
             }
         } catch (err) {
-            toast.error("Erro de conexão com o servidor.", { id: toastId });
+            console.error(err);
+            toast.error("Erro de conexão.", { id: toastId });
             return false;
         }
     };
@@ -93,7 +112,11 @@ export function useEmployees() {
         if (window.confirm("Tem certeza que deseja remover este funcionário?")) {
             const toastId = toast.loading('Removendo...');
             try {
-                const res = await fetch(`${API_URL}/employees/${id}`, { method: 'DELETE' });
+                const res = await fetch(`${API_URL}/employees/${id}`, { 
+                    method: 'DELETE',
+                    headers: getAuthHeaders() 
+                });
+                
                 if (res.ok) {
                     await fetchData();
                     toast.success("Removido com sucesso!", { id: toastId });

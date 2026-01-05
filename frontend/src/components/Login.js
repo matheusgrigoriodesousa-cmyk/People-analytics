@@ -8,8 +8,11 @@ const Login = ({ onLogin }) => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // --- URL DO SEU BACKEND NO RENDER ---
-  const API_URL = "https://people-analytics-api-jba6.onrender.com"; 
+  // --- URL INTELIGENTE (HÍBRIDA) ---
+  // 1. Tenta pegar do arquivo .env (Local) ou da Vercel (Nuvem)
+  // 2. Se não tiver, usa o Render fixo como garantia
+  // 3. O .replace remove o "/api" do final para garantir que a rota de auth funcione (que fica na raiz)
+  const BASE_URL = (process.env.REACT_APP_API_URL || "https://people-analytics-api-jba6.onrender.com").replace('/api', '');
 
   const LINKEDIN_URL = "https://www.linkedin.com/in/matheus-grigorio-77a51b355"; 
 
@@ -23,8 +26,10 @@ const Login = ({ onLogin }) => {
       formData.append('username', email);
       formData.append('password', password);
 
-      // Chamada para a API na nuvem
-      const response = await fetch(`${API_URL}/auth/login`, {
+      console.log(`Tentando logar em: ${BASE_URL}/auth/login`); // Log para ajudar no debug
+
+      // Chamada para a API (Local ou Nuvem dependendo de onde está rodando)
+      const response = await fetch(`${BASE_URL}/auth/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
@@ -54,7 +59,7 @@ const Login = ({ onLogin }) => {
 
     } catch (err) {
       console.error(err);
-      setError('Acesso negado: Verifique suas credenciais.');
+      setError('Acesso negado: Verifique suas credenciais ou se o servidor está rodando.');
     } finally {
       setLoading(false);
     }

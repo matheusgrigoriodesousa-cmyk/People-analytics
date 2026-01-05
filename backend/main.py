@@ -14,7 +14,7 @@ from dotenv import load_dotenv
 from jose import JWTError, jwt 
 from datetime import datetime, timedelta
 
-# Importação do serviço de análise
+# Importação do serviço de análise (Tenta importar, senão cria um mock)
 try:
     from services.analysis import gerar_dashboard
 except ImportError:
@@ -31,10 +31,13 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 60
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
 
 # ================= CONFIG BANCO HÍBRIDA =================
+# Esta lógica permite que o código rode no seu PC (SQL Server) 
+# e no Render (PostgreSQL) sem precisar mudar nenhuma linha.
 
 DATABASE_URL_ENV = os.getenv("DATABASE_URL")
 
 if DATABASE_URL_ENV:
+    # --- AMBIENTE: NUVEM (Render / PostgreSQL) ---
     if DATABASE_URL_ENV.startswith("postgres://"):
         SQLALCHEMY_DATABASE_URL = DATABASE_URL_ENV.replace("postgres://", "postgresql://", 1)
     else:
@@ -42,6 +45,8 @@ if DATABASE_URL_ENV:
     engine = create_engine(SQLALCHEMY_DATABASE_URL)
     print("🚀 Conectado ao PostgreSQL (Ambiente de Nuvem)")
 else:
+    # --- AMBIENTE: LOCAL (SQL Server) ---
+    # Certifique-se que o driver ODBC 17 está instalado no seu Windows
     params = urllib.parse.quote_plus(
         "DRIVER={ODBC Driver 17 for SQL Server};"
         "SERVER=localhost;"
@@ -76,6 +81,7 @@ class UserDB(Base):
     role = Column(String(20), default="viewer") 
     is_active = Column(Boolean, default=True)
 
+# Cria as tabelas se não existirem
 Base.metadata.create_all(bind=engine)
 
 # ================= SCHEMAS PYDANTIC =================
@@ -100,7 +106,18 @@ class UserCreate(BaseModel):
     email: str
     password: str
     nome: str
-    role: str = "admin"
+    role: str = "admin" 
+
+# --- NOVO SCHEMA: Para devolver usuários sem a senha ---
+class UserResponse(BaseModel):
+    id: int
+    email: str
+    nome: str
+    role: str
+    is_active: bool
+
+    class Config:
+        from_attributes = True
 
 class Token(BaseModel):
     access_token: str
@@ -134,15 +151,9 @@ def create_access_token(data: dict):
 
 app = FastAPI(title="People Analytics API")
 
-origins = [
-    "https://people-analytics-pi.vercel.app", 
-    "http://localhost:3000",                  
-    "http://127.0.0.1:3000",                 
-]
-
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=["*"], 
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -185,6 +196,11 @@ def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db:
         "role": user.role
     }
 
+# --- NOVO: ROTA PARA LISTAR USUÁRIOS ---
+@app.get("/api/users", response_model=List[UserResponse])
+def get_users(db: Session = Depends(get_db)):
+    return db.query(UserDB).all()
+
 # --- ROTAS DE FUNCIONÁRIOS ---
 
 @app.get("/api/employees", response_model=List[Employee])
@@ -206,7 +222,6 @@ def create_employee(employee: EmployeeCreate, db: Session = Depends(get_db)):
     db.refresh(db_employee)
     return db_employee
 
-# ROTA UPDATE (CORRIGIDA INDENTAÇÃO)
 @app.put("/api/employees/{employee_id}", response_model=Employee)
 def update_employee(employee_id: int, employee: EmployeeCreate, db: Session = Depends(get_db)):
     db_employee = db.query(EmployeeDB).filter(EmployeeDB.id == employee_id).first()
@@ -228,7 +243,6 @@ def delete_employee(employee_id: int, db: Session = Depends(get_db)):
     db.delete(db_employee)
     db.commit()
     return None
-
-# BLOCO DE EXECUÇÃO (FINAL DO ARQUIVO)
+# ================= RODAR O APP =================
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
