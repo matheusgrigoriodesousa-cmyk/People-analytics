@@ -100,7 +100,7 @@ class UserCreate(BaseModel):
     email: str
     password: str
     nome: str
-    role: str = "viewer"
+    role: str = "admin"
 
 class Token(BaseModel):
     access_token: str
