@@ -14,8 +14,7 @@ from dotenv import load_dotenv
 from jose import JWTError, jwt 
 from datetime import datetime, timedelta
 
-# Importação do seu serviço de análise
-# Certifique-se que a pasta 'services' e o arquivo 'analysis.py' existam
+# Importação do serviço de análise
 try:
     from services.analysis import gerar_dashboard
 except ImportError:
@@ -32,7 +31,6 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 60
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
 
 # ================= CONFIG BANCO HÍBRIDA =================
-# 
 
 DATABASE_URL_ENV = os.getenv("DATABASE_URL")
 
@@ -42,13 +40,10 @@ if DATABASE_URL_ENV:
         SQLALCHEMY_DATABASE_URL = DATABASE_URL_ENV.replace("postgres://", "postgresql://", 1)
     else:
         SQLALCHEMY_DATABASE_URL = DATABASE_URL_ENV
-    
-    # Para Postgres, não precisamos de configurações extras de driver
     engine = create_engine(SQLALCHEMY_DATABASE_URL)
     print("🚀 Conectado ao PostgreSQL (Ambiente de Nuvem)")
 else:
     # --- AMBIENTE: LOCAL (SQL Server) ---
-    # Ajuste o nome do banco 'RH_Database' se necessário
     params = urllib.parse.quote_plus(
         "DRIVER={ODBC Driver 17 for SQL Server};"
         "SERVER=localhost;"
@@ -56,7 +51,6 @@ else:
         "Trusted_Connection=yes;"
     )
     SQLALCHEMY_DATABASE_URL = f"mssql+pyodbc:///?odbc_connect={params}"
-    
     engine = create_engine(SQLALCHEMY_DATABASE_URL)
     print("💻 Conectado ao SQL Server Local")
 
@@ -84,10 +78,9 @@ class UserDB(Base):
     role = Column(String(20), default="viewer") 
     is_active = Column(Boolean, default=True)
 
-# Cria as tabelas automaticamente se elas não existirem
 Base.metadata.create_all(bind=engine)
 
-# ================= SCHEMAS PYDANTIC (VALIDAÇÃO) =================
+# ================= SCHEMAS PYDANTIC =================
 
 class EmployeeBase(BaseModel):
     nome: str
@@ -110,15 +103,6 @@ class UserCreate(BaseModel):
     password: str
     nome: str
     role: str = "viewer"
-
-class UserResponse(BaseModel):
-    id: int
-    email: str
-    nome: str
-    role: str
-    is_active: bool
-    class Config:
-        from_attributes = True
 
 class Token(BaseModel):
     access_token: str
@@ -146,19 +130,27 @@ def create_access_token(data: dict):
     to_encode = data.copy()
     expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     to_encode.update({"exp": expire})
-    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-    return encoded_jwt
+    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
 # ================= API APP =================
 
 app = FastAPI(title="People Analytics API")
 
+# --- CONFIGURAÇÃO DE CORS ATUALIZADA ---
+origins = [
+    "https://people-analytics-pi.vercel.app", # Produção
+    "http://localhost:3000",                  # Local React
+    "http://127.0.0.1:3000",                 # Local React Alt
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    # Essencial para navegadores modernos lidarem com Private Network Access
+    expose_headers=["*"],
 )
 
 # --- ROTAS DE AUTENTICAÇÃO ---
@@ -169,22 +161,19 @@ def register_user(user: UserCreate, db: Session = Depends(get_db)):
     if db_user:
         raise HTTPException(status_code=400, detail="E-mail já cadastrado")
     
-    hashed_password = get_password_hash(user.password)
     new_user = UserDB(
         email=user.email,
-        hashed_password=hashed_password,
+        hashed_password=get_password_hash(user.password),
         nome=user.nome,
         role=user.role
     )
     db.add(new_user)
     db.commit()
-    db.refresh(new_user)
     return {"msg": "Usuário criado com sucesso"}
 
 @app.post("/auth/login", response_model=Token)
 def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
     user = db.query(UserDB).filter(UserDB.email == form_data.username).first()
-    
     if not user or not verify_password(form_data.password, user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -193,7 +182,6 @@ def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db:
         )
     
     access_token = create_access_token(data={"sub": user.email, "role": user.role})
-    
     return {
         "access_token": access_token, 
         "token_type": "bearer",
@@ -232,4 +220,17 @@ def delete_employee(employee_id: int, db: Session = Depends(get_db)):
     return None
 
 if __name__ == "__main__":
-    uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
+    # Rodar em 0.0.0.0 permite acesso externo na rede local
+    uvicorn.run(app, host="0.0.0.0", port=8000)
+    @app.put("/api/employees/{employee_id}", response_model=Employee)
+def update_employee(employee_id: int, employee: EmployeeCreate, db: Session = Depends(get_db)):
+    db_employee = db.query(EmployeeDB).filter(EmployeeDB.id == employee_id).first()
+    if not db_employee:
+        raise HTTPException(status_code=404, detail="Funcionário não encontrado")
+    
+    for key, value in employee.model_dump().items():
+        setattr(db_employee, key, value)
+        
+    db.commit()
+    db.refresh(db_employee)
+    return db_employee
