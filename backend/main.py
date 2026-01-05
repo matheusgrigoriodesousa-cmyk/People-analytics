@@ -31,9 +31,6 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 60
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
 
 # ================= CONFIG BANCO HÍBRIDA =================
-# Esta lógica permite que o código rode no seu PC (SQL Server) 
-# e no Render (PostgreSQL) sem precisar mudar nenhuma linha.
-
 DATABASE_URL_ENV = os.getenv("DATABASE_URL")
 
 if DATABASE_URL_ENV:
@@ -46,7 +43,6 @@ if DATABASE_URL_ENV:
     print("🚀 Conectado ao PostgreSQL (Ambiente de Nuvem)")
 else:
     # --- AMBIENTE: LOCAL (SQL Server) ---
-    # Certifique-se que o driver ODBC 17 está instalado no seu Windows
     params = urllib.parse.quote_plus(
         "DRIVER={ODBC Driver 17 for SQL Server};"
         "SERVER=localhost;"
@@ -108,7 +104,13 @@ class UserCreate(BaseModel):
     nome: str
     role: str = "admin" 
 
-# --- NOVO SCHEMA: Para devolver usuários sem a senha ---
+# --- NOVO SCHEMA: Para editar usuário (Campos Opcionais) ---
+class UserUpdate(BaseModel):
+    nome: Optional[str] = None
+    email: Optional[str] = None
+    role: Optional[str] = None
+    password: Optional[str] = None
+
 class UserResponse(BaseModel):
     id: int
     email: str
@@ -196,10 +198,46 @@ def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db:
         "role": user.role
     }
 
-# --- NOVO: ROTA PARA LISTAR USUÁRIOS ---
+# --- ROTAS DE USUÁRIOS (GERENCIAMENTO) ---
+
 @app.get("/api/users", response_model=List[UserResponse])
 def get_users(db: Session = Depends(get_db)):
     return db.query(UserDB).all()
+
+# NOVO: Rota para Editar Usuário
+@app.put("/api/users/{user_id}")
+def update_user(user_id: int, user_data: UserUpdate, db: Session = Depends(get_db)):
+    user_db = db.query(UserDB).filter(UserDB.id == user_id).first()
+    
+    if not user_db:
+        raise HTTPException(status_code=404, detail="Usuário não encontrado")
+    
+    # Atualiza apenas os campos enviados
+    if user_data.nome:
+        user_db.nome = user_data.nome
+    if user_data.email:
+        user_db.email = user_data.email
+    if user_data.role:
+        user_db.role = user_data.role
+    if user_data.password:
+        # Se enviou senha nova, hasheia ela antes de salvar
+        user_db.hashed_password = get_password_hash(user_data.password)
+        
+    db.commit()
+    db.refresh(user_db)
+    return user_db
+
+# NOVO: Rota para Deletar Usuário
+@app.delete("/api/users/{user_id}", status_code=204)
+def delete_user(user_id: int, db: Session = Depends(get_db)):
+    user_db = db.query(UserDB).filter(UserDB.id == user_id).first()
+    
+    if not user_db:
+        raise HTTPException(status_code=404, detail="Usuário não encontrado")
+    
+    db.delete(user_db)
+    db.commit()
+    return None
 
 # --- ROTAS DE FUNCIONÁRIOS ---
 
@@ -243,6 +281,7 @@ def delete_employee(employee_id: int, db: Session = Depends(get_db)):
     db.delete(db_employee)
     db.commit()
     return None
+
 # ================= RODAR O APP =================
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
