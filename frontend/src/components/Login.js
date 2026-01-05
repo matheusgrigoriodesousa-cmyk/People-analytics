@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { User, Lock, LogIn, AlertCircle, Server, Linkedin } from 'lucide-react';
-import '../App.css'; // Caminho para o CSS
+import '../App.css'; 
 
 const Login = ({ onLogin }) => {
   const [email, setEmail] = useState('');
@@ -8,7 +8,9 @@ const Login = ({ onLogin }) => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // --- SEU LINK DO LINKEDIN ---
+  // --- URL DO SEU BACKEND NO RENDER ---
+  const API_URL = "https://people-analytics-api-jba6.onrender.com"; 
+
   const LINKEDIN_URL = "https://www.linkedin.com/in/matheus-grigorio-77a51b355"; 
 
   const handleSubmit = async (e) => {
@@ -21,8 +23,8 @@ const Login = ({ onLogin }) => {
       formData.append('username', email);
       formData.append('password', password);
 
-      // Ajuste a URL se necessário (ex: localhost vs IP)
-      const response = await fetch('http://127.0.0.1:8000/auth/login', {
+      // Chamada para a API na nuvem
+      const response = await fetch(`${API_URL}/auth/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
@@ -36,7 +38,7 @@ const Login = ({ onLogin }) => {
         throw new Error(data.detail || 'Falha ao conectar no servidor.');
       }
 
-      // Salva dados e token
+      // Armazenamento local para manter a sessão
       localStorage.setItem('token', data.access_token);
       localStorage.setItem('user_name', data.user_name);
       localStorage.setItem('user_role', data.role);
@@ -62,7 +64,7 @@ const Login = ({ onLogin }) => {
     <div className="login-container">
       <div className="login-card animate-fade-in">
         
-        {/* --- CABEÇALHO --- */}
+        {/* CABEÇALHO */}
         <div style={{ marginBottom: '30px', textAlign: 'center' }}>
             <div style={{ 
                 width: '70px', height: '70px', 
@@ -84,18 +86,15 @@ const Login = ({ onLogin }) => {
             </p>
         </div>
 
-        {/* --- FORMULÁRIO --- */}
+        {/* FORMULÁRIO */}
         <form onSubmit={handleSubmit} style={{ width: '100%' }}>
             
-            {/* CAMPO E-MAIL */}
             <div className="form-group">
                 <label style={{fontSize: '0.75rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.5px', color: '#555'}}>
                   E-mail
                 </label>
                 
-                {/* Wrapper para posicionamento relativo */}
                 <div className="input-wrapper" style={{ position: 'relative' }}>
-                    {/* Ícone posicionado absolutamente */}
                     <span className="input-icon" style={{ 
                         position: 'absolute', 
                         left: '12px', 
@@ -108,7 +107,6 @@ const Login = ({ onLogin }) => {
                         <User size={20} />
                     </span>
                     
-                    {/* Input com paddingLeft forçado inline para vencer o CSS global */}
                     <input 
                         type="email" 
                         required
@@ -118,14 +116,13 @@ const Login = ({ onLogin }) => {
                         style={{ 
                             height: '45px', 
                             fontSize: '0.95rem',
-                            paddingLeft: '45px', /* AQUI ESTÁ A CORREÇÃO FORÇADA */
+                            paddingLeft: '45px',
                             width: '100%'
                         }} 
                     />
                 </div>
             </div>
 
-            {/* CAMPO SENHA */}
             <div className="form-group">
                 <label style={{fontSize: '0.75rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.5px', color: '#555'}}>
                   Senha
@@ -153,21 +150,19 @@ const Login = ({ onLogin }) => {
                         style={{ 
                             height: '45px', 
                             fontSize: '0.95rem',
-                            paddingLeft: '45px', /* AQUI ESTÁ A CORREÇÃO FORÇADA */
+                            paddingLeft: '45px',
                             width: '100%'
                         }}
                     />
                 </div>
             </div>
 
-            {/* MENSAGEM DE ERRO */}
             {error && (
               <div className="login-error animate-fade-in" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
                 <AlertCircle size={16} /> {error}
               </div>
             )}
 
-            {/* BOTÃO ENTRAR */}
             <button type="submit" className="btn-login" disabled={loading} style={{ height: '48px', fontSize: '1rem', fontWeight: '600', marginTop: '10px' }}>
                 {loading ? 'Entrando...' : (
                     <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
@@ -177,7 +172,7 @@ const Login = ({ onLogin }) => {
             </button>
         </form>
 
-        {/* --- RODAPÉ COM LINKEDIN --- */}
+        {/* RODAPÉ */}
         <div className="login-footer" style={{ marginTop: '30px', borderTop: '1px solid #eee', paddingTop: '20px' }}>
             <p style={{ 
                 fontSize: '0.8rem', 
@@ -200,11 +195,8 @@ const Login = ({ onLogin }) => {
                     gap: '4px', 
                     color: '#0077b5', 
                     textDecoration: 'none',
-                    fontWeight: 'bold',
-                    transition: 'opacity 0.2s'
+                    fontWeight: 'bold'
                 }}
-                onMouseOver={(e) => e.currentTarget.style.opacity = '0.8'}
-                onMouseOut={(e) => e.currentTarget.style.opacity = '1'}
               >
                  <Linkedin size={14} /> Matheus
               </a>
