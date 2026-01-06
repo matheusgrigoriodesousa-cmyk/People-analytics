@@ -50,3 +50,5 @@ INSERT INTO employees (nome, cargo, dept, salario, status, idade) VALUES
 GO
 
 SELECT * FROM employees;
+
+DROP TABLE employees;

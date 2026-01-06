@@ -1,14 +1,11 @@
-import requests
 import random
-import time
+from sqlalchemy.orm import Session
+from app.database import SessionLocal, engine, Base # Importa a nova estrutura de conexão
+from app.models import EmployeeDB                     # Importa o modelo da pasta app
 
-# --- CONFIGURAÇÃO ---
-# URL da sua API no Render
-URL_API = "https://people-analytics-api-jba6.onrender.com/api/employees"
-
-# Dados para gerar aleatoriedade
+# --- CONFIGURAÇÃO DE DADOS ---
 DEPARTAMENTOS = ["TI", "RH", "Financeiro", "Comercial", "Operações", "Marketing"]
-STATUS = ["Ativo", "Ativo", "Ativo", "Férias", "Licença"] # Mais chance de ser Ativo
+STATUS = ["Ativo", "Ativo", "Ativo", "Férias", "Licença"]
 
 CARGOS_POR_DEPT = {
     "TI": ["Dev Junior", "Dev Pleno", "Dev Senior", "Tech Lead", "QA", "DevOps"],
@@ -19,61 +16,44 @@ CARGOS_POR_DEPT = {
     "Marketing": ["Analista de Marketing", "Designer", "Copywriter", "CMO"]
 }
 
-NOMES = [
-    "Ana", "Bruno", "Carla", "Daniel", "Eduarda", "Felipe", "Gabriela", "Hugo", 
-    "Isabela", "João", "Karina", "Lucas", "Mariana", "Nicolas", "Olivia", "Pedro",
-    "Quintino", "Rafaela", "Samuel", "Tatiana", "Ubaldo", "Vanessa", "Wagner", "Yara"
-]
+NOMES = ["Ana", "Bruno", "Carla", "Daniel", "Eduarda", "Felipe", "Gabriela", "Hugo", "Isabela", "João"]
+SOBRENOMES = ["Silva", "Santos", "Oliveira", "Souza", "Rodrigues", "Ferreira", "Alves"]
 
-SOBRENOMES = [
-    "Silva", "Santos", "Oliveira", "Souza", "Rodrigues", "Ferreira", "Alves", 
-    "Pereira", "Lima", "Gomes", "Costa", "Ribeiro", "Martins"
-]
-
-def gerar_funcionario_fake():
-    nome_completo = f"{random.choice(NOMES)} {random.choice(SOBRENOMES)}"
+def gerar_dados_fake():
+    """Gera um dicionário com dados de um funcionário aleatório."""
     dept = random.choice(DEPARTAMENTOS)
-    cargo = random.choice(CARGOS_POR_DEPT[dept])
-    
-    # Salário base + variação
-    salario_base = random.randint(3000, 15000)
-    
     return {
-        "nome": nome_completo,
-        "cargo": cargo,
+        "nome": f"{random.choice(NOMES)} {random.choice(SOBRENOMES)}",
+        "cargo": random.choice(CARGOS_POR_DEPT[dept]),
         "dept": dept,
-        "salario": float(salario_base),
+        "salario": float(random.randint(3000, 15000)),
         "idade": random.randint(20, 60),
         "status": random.choice(STATUS)
     }
 
-print(f"🚀 Iniciando inserção de dados em: {URL_API}")
-print("-" * 50)
-
-sucessos = 0
-erros = 0
-
-# Vamos criar 15 funcionários
-for i in range(15):
-    dados = gerar_funcionario_fake()
+def popular_banco():
+    # Garante que as tabelas existam antes de inserir
+    Base.metadata.create_all(bind=engine)
+    
+    db = SessionLocal()
+    print("🚀 Iniciando a inserção de dados diretamente no Banco de Dados...")
     
     try:
-        response = requests.post(URL_API, json=dados)
+        for i in range(15):
+            dados = gerar_dados_fake()
+            # Cria a instância do modelo EmployeeDB com os dados gerados
+            novo_func = EmployeeDB(**dados)
+            db.add(novo_func)
+            print(f"✅ [{i+1}/15] Adicionado: {dados['nome']} ({dados['dept']})")
         
-        if response.status_code == 201:
-            print(f"✅ [{i+1}/15] Cadastrado: {dados['nome']} - {dados['cargo']} ({dados['dept']})")
-            sucessos += 1
-        else:
-            print(f"❌ Erro ao cadastrar {dados['nome']}: {response.status_code} - {response.text}")
-            erros += 1
-            
+        db.commit()
+        print("-" * 50)
+        print("🏁 Sucesso! 15 funcionários foram inseridos no banco de dados.")
     except Exception as e:
-        print(f"💀 Erro de conexão: {e}")
-        erros += 1
-    
-    # Pausa pequena para não sobrecarregar o servidor gratuito
-    time.sleep(0.5)
+        print(f"❌ Erro ao popular banco: {e}")
+        db.rollback()
+    finally:
+        db.close()
 
-print("-" * 50)
-print(f"🏁 Fim! Sucessos: {sucessos} | Erros: {erros}")
-print("👉 Agora atualize a página do seu Dashboard!")
+if __name__ == "__main__":
+    popular_banco()
