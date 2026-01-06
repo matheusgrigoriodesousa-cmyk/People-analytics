@@ -11,9 +11,13 @@ const Login = ({ onLogin }) => {
   const [error, setError] = useState('');     
   const [loading, setLoading] = useState(false); 
 
-  // --- 4. CONFIGURAÇÃO INTELIGENTE DE URL (CORRIGIDA) ---
-  // Mantemos o /api que é exigido pelo seu main.py
-  const BASE_URL = (process.env.REACT_APP_API_URL || "http://127.0.0.1:8000/api");
+  // --- 4. CONFIGURAÇÃO INTELIGENTE DE URL (BLINDADA) ---
+  // 1. Pega o domínio do .env (ou usa localhost SEM /api como fallback)
+  const ENV_URL = process.env.REACT_APP_API_URL || "http://127.0.0.1:8000";
+  // 2. Remove a barra do final se existir (pra evitar duplicidade //)
+  const BASE_URL = ENV_URL.replace(/\/$/, '');
+  // 3. Monta a URL final da API (Adiciona o /api aqui)
+  const API_URL = `${BASE_URL}/api`;
 
   const LINKEDIN_URL = "https://www.linkedin.com/in/matheus-grigorio-77a51b355"; 
 
@@ -28,9 +32,10 @@ const Login = ({ onLogin }) => {
       formData.append('username', email); 
       formData.append('password', password);
 
-      console.log(`Tentando logar em: ${BASE_URL}/auth/login`); 
+      // Agora a URL estará correta: .../api/auth/login
+      console.log(`Tentando logar em: ${API_URL}/auth/login`); 
 
-      const response = await fetch(`${BASE_URL}/auth/login`, {
+      const response = await fetch(`${API_URL}/auth/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',

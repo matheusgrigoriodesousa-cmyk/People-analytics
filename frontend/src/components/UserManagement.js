@@ -4,9 +4,14 @@ import { Trash2, UserPlus, Shield, User, AlertCircle, Edit, X, Save, ArrowLeft }
 import toast from 'react-hot-toast';
 
 // ============================================================================
-// BLOCO 1: CONFIGURAÇÃO DA URL DA API
+// BLOCO 1: CONFIGURAÇÃO DA URL DA API (CORRIGIDA)
 // ============================================================================
-const API_URL = process.env.REACT_APP_API_URL || "http://127.0.0.1:8000/api";
+// 1. Pega o domínio do .env (ou usa localhost como fallback)
+const ENV_URL = process.env.REACT_APP_API_URL || "http://127.0.0.1:8000";
+// 2. Remove a barra do final se existir (pra evitar duplicidade)
+const BASE_URL = ENV_URL.replace(/\/$/, '');
+// 3. Monta a URL final da API (Adiciona o /api aqui)
+const API_URL = `${BASE_URL}/api`; 
 
 const UserManagement = () => {
     // ============================================================================
@@ -32,7 +37,8 @@ const UserManagement = () => {
         setLoading(true);
         try {
             const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
-            // Uso da barra final para bater com o prefixo /users/ do backend
+            
+            // AGORA A URL ESTÁ CORRETA: .../api/users/
             const response = await fetch(`${API_URL}/users/`, { headers });
             
             if (!response.ok) {
@@ -47,6 +53,7 @@ const UserManagement = () => {
             setUsers(data);
             setError('');
         } catch (err) {
+            console.error("Erro fetchUsers:", err); // Log para ajudar no debug
             setError('Não foi possível carregar os usuários.');
         } finally {
             setLoading(false);
