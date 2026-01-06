@@ -18,4 +18,4 @@ env/
 
 # --- EXTRAS (Vi uma pasta node_modules perdida no backend no vídeo) ---
 node_modules/
-popular.py
+backend/popular.py
