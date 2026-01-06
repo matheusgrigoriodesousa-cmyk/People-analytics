@@ -1,59 +1,73 @@
 import random
-from sqlalchemy.orm import Session
-from app.database import SessionLocal, engine, Base # Importa a nova estrutura de conexão
-from app.models import EmployeeDB                     # Importa o modelo da pasta app
+from sqlalchemy import create_engine, text
+from passlib.context import CryptContext
 
-# --- CONFIGURAÇÃO DE DADOS ---
-DEPARTAMENTOS = ["TI", "RH", "Financeiro", "Comercial", "Operações", "Marketing"]
-STATUS = ["Ativo", "Ativo", "Ativo", "Férias", "Licença"]
+# SUA URL DO RENDER (Já configurada)
+DATABASE_URL = "postgresql://admin:gvST2c7hU4ZMhLslkW7VRClIWgqogxxv@dpg-d5e76i75r7bs73aahgfg-a.ohio-postgres.render.com/people_analytics_yllo"
 
-CARGOS_POR_DEPT = {
-    "TI": ["Dev Junior", "Dev Pleno", "Dev Senior", "Tech Lead", "QA", "DevOps"],
-    "RH": ["Assistente de RH", "Analista de RH", "Gerente de Pessoas", "Recrutador"],
-    "Financeiro": ["Analista Financeiro", "Contador", "Controller", "CFO"],
-    "Comercial": ["Vendedor", "Executivo de Vendas", "Gerente de Contas", "Diretor"],
-    "Operações": ["Auxiliar Operacional", "Supervisor", "Gerente de Operações"],
-    "Marketing": ["Analista de Marketing", "Designer", "Copywriter", "CMO"]
-}
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+engine = create_engine(DATABASE_URL)
 
-NOMES = ["Ana", "Bruno", "Carla", "Daniel", "Eduarda", "Felipe", "Gabriela", "Hugo", "Isabela", "João"]
-SOBRENOMES = ["Silva", "Santos", "Oliveira", "Souza", "Rodrigues", "Ferreira", "Alves"]
+def popular_tudo():
+    print("🚀 Iniciando população do Banco de Dados no Render...")
 
-def gerar_dados_fake():
-    """Gera um dicionário com dados de um funcionário aleatório."""
-    dept = random.choice(DEPARTAMENTOS)
-    return {
-        "nome": f"{random.choice(NOMES)} {random.choice(SOBRENOMES)}",
-        "cargo": random.choice(CARGOS_POR_DEPT[dept]),
-        "dept": dept,
-        "salario": float(random.randint(3000, 15000)),
-        "idade": random.randint(20, 60),
-        "status": random.choice(STATUS)
-    }
-
-def popular_banco():
-    # Garante que as tabelas existam antes de inserir
-    Base.metadata.create_all(bind=engine)
-    
-    db = SessionLocal()
-    print("🚀 Iniciando a inserção de dados diretamente no Banco de Dados...")
-    
-    try:
-        for i in range(15):
-            dados = gerar_dados_fake()
-            # Cria a instância do modelo EmployeeDB com os dados gerados
-            novo_func = EmployeeDB(**dados)
-            db.add(novo_func)
-            print(f"✅ [{i+1}/15] Adicionado: {dados['nome']} ({dados['dept']})")
+    with engine.connect() as conn:
+        # ==========================================
+        # 1. GARANTIR O ADMIN (O mais importante)
+        # ==========================================
+        print("👤 Criando/Resetando Admin...")
+        conn.execute(text("DELETE FROM users WHERE email = 'admin@teste.com'"))
         
-        db.commit()
-        print("-" * 50)
-        print("🏁 Sucesso! 15 funcionários foram inseridos no banco de dados.")
-    except Exception as e:
-        print(f"❌ Erro ao popular banco: {e}")
-        db.rollback()
-    finally:
-        db.close()
+        senha_hash = pwd_context.hash("123")
+        
+        conn.execute(text("""
+            INSERT INTO users (nome, email, hashed_password, role, is_active)
+            VALUES (:nome, :email, :senha, :role, :ativo)
+        """), {
+            "nome": "Admin Master",
+            "email": "admin@teste.com",
+            "senha": senha_hash,
+            "role": "admin",
+            "ativo": True
+        })
+
+        # ==========================================
+        # 2. CRIAR FUNCIONÁRIOS (Para os Gráficos)
+        # ==========================================
+        print("💼 Inserindo funcionários de teste...")
+        
+        # Limpa funcionários antigos para não duplicar
+        conn.execute(text("DELETE FROM employees"))
+
+        departamentos = ["TI", "RH", "Vendas", "Marketing", "Financeiro"]
+        cargos = ["Analista", "Gerente", "Assistente", "Diretor", "Estagiário"]
+        nomes = ["Ana Silva", "Carlos Souza", "Beatriz Lima", "João Santos", "Fernanda Oliveira", 
+                 "Lucas Pereira", "Mariana Costa", "Pedro Alves", "Juliana Rocha", "Rafael Gomes"]
+
+        for i, nome in enumerate(nomes):
+            dept = random.choice(departamentos)
+            cargo = random.choice(cargos)
+            salario = random.randint(3000, 15000)
+            idade = random.randint(22, 60)
+            
+            conn.execute(text("""
+                INSERT INTO employees (nome, dept, cargo, salario, idade, status)
+                VALUES (:nome, :dept, :cargo, :salario, :idade, :status)
+            """), {
+                "nome": nome,
+                "dept": dept,
+                "cargo": cargo,
+                "salario": salario,
+                "idade": idade,
+                "status": "Ativo"
+            })
+            
+        conn.commit()
+        print("------------------------------------------------")
+        print("✅ SUCESSO TOTAL!")
+        print("1. Admin criado (admin@teste.com / 123)")
+        print(f"2. {len(nomes)} funcionários inseridos.")
+        print("------------------------------------------------")
 
 if __name__ == "__main__":
-    popular_banco()
+    popular_tudo()
