@@ -3,29 +3,30 @@ import urllib
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
 
-# 1. Tenta pegar a URL do PostgreSQL (Render)
-DATABASE_URL = os.getenv("DATABASE_URL")
+# 1. Pega a variável de ambiente (mas não confia nela cegamente)
+env_url = os.getenv("DATABASE_URL", "")
 
-if DATABASE_URL:
-    # Ajuste para compatibilidade do SQLAlchemy com URLs "postgres://" do Render/Heroku
-    if DATABASE_URL.startswith("postgres://"):
-        DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
-    SQLALCHEMY_DATABASE_URL = DATABASE_URL
-    # Engine para PostgreSQL (Render)
-    engine = create_engine(SQLALCHEMY_DATABASE_URL)
+# 2. TESTE DE SEGURANÇA: Só usa a variável se for NUVEM (Postgres do Render)
+# Se a variável começar com "DRIVER=...", o código vai ignorar e ir para o 'else' (Local)
+if env_url and (env_url.startswith("postgres://") or env_url.startswith("postgresql://")):
+    # --- CONEXÃO NUVEM (RENDER) ---
+    if env_url.startswith("postgres://"):
+        env_url = env_url.replace("postgres://", "postgresql://", 1)
+    
+    SQLALCHEMY_DATABASE_URL = env_url
+    # Adicionamos pool_pre_ping para evitar quedas no Render
+    engine = create_engine(SQLALCHEMY_DATABASE_URL, pool_pre_ping=True, pool_recycle=1800)
+
 else:
-    # 2. Se não houver DATABASE_URL, mantém a ESTRUTURA LOCAL (SQL Server)
+    # --- CONEXÃO LOCAL (SQL SERVER) ---
+    print("--- MODO LOCAL: Forçando SQL Server ---") # Aviso no terminal
+    
+    # Monta a URL correta que o SQLAlchemy entende (mssql+pyodbc://...)
     params = urllib.parse.quote_plus(
-        os.getenv(
-            "DATABASE_CONNECTION",
-            "DRIVER={ODBC Driver 17 for SQL Server};"
-            "SERVER=.;"
-            "DATABASE=RH_Database;"
-            "Trusted_Connection=yes;"
-        )
+        "DRIVER={ODBC Driver 17 for SQL Server};SERVER=.;DATABASE=RH_Database;Trusted_Connection=yes;"
     )
     SQLALCHEMY_DATABASE_URL = f"mssql+pyodbc:///?odbc_connect={params}"
-    # Engine para SQL Server (Local)
+    
     engine = create_engine(SQLALCHEMY_DATABASE_URL, fast_executemany=True)
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
